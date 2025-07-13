@@ -2,14 +2,50 @@
 
 A powerful document analysis and chat application built with Next.js, Supabase, and AI APIs.
 
-## Features
+Core Features:
 
-- Document upload and processing (PDF, DOCX, HTML, CSV, Excel, PowerPoint, Images, Jupyter notebooks)
-- AI-powered document analysis and chat
-- Semantic search with vector embeddings
-- User authentication and document management
-- Real-time chat interface
+   * Document Management:
+       * Document upload and processing (PDF, DOCX, HTML, CSV, Excel, PowerPoint, Images, Jupyter notebooks).
+       * Basic document metadata storage, retrieval, and deletion.
+       * Client-side PDF text extraction.
+       * Basic text extraction for DOCX, HTML, CSV, and Excel (XLSX).
+       * Placeholder/basic text extraction for PowerPoint (PPTX), Jupyter Notebooks, and Image files.
+   * AI-Powered Analysis & Chat:
+       * AI-powered document analysis and chat.
+       * Real-time chat interface.
+       * Query decomposition using Gemini to break down complex user queries.
+       * Reasoning over retrieved text chunks using LLMs (Gemini).
+       * Smart Summarization: Generate executive summaries across multiple documents.
+       * Relationship Mapping: Identify and visualize connections between concepts across documents (currently text-based similarity).
+   * Search & Embeddings:
+       * Semantic search with vector embeddings.
+       * Hybrid search (vector + keyword) implemented with Supabase and pgvector.
+       * Metadata filtering for search.
+       * Custom Embedding Strategy: Flexible embedding strategy with a primary Hugging Face model and a deterministic fallback.
+   * User & System Features:
+       * User authentication (via Supabase Auth).
+       * Query history displayed in the chat UI.
+       * Comprehensive error handling: Automatic retries for API failures, fallback responses, graceful degradation, and detailed error messages.
+       * Analytics (inferred from components/analytics.tsx and app/api/analytics/route.ts).
+       * Theming (inferred from components/theme-provider.tsx).
 
+  Architectural & Technical Features:
+
+   * Frontend: Next.js 14 with TypeScript, React.
+   * Backend: Next.js API routes (Node.js).
+   * Database: Supabase (PostgreSQL with pgvector).
+   * AI Services: Google Gemini, HuggingFace Inference API.
+   * Styling: Tailwind CSS with shadcn/ui components.
+
+  Planned/Research & Development Features (not fully implemented):
+
+   * Advanced Multimodal Understanding (processing relationships between text, images, tables, charts, and code).
+   * Intelligent Document Structure (maintaining document hierarchy).
+   * Advanced Query Capabilities (requiring reasoning across multiple modalities).
+   * Real-time Collaboration.
+   * Domain-specific embeddings for technical content (infrastructure in place).
+   * Export & Integration (allowing users to export insights and integrate with other tools).
+   * Integration with vision models (GPT-4V, Claude Vision) for image understanding
 ## Setup
 
 ### Environment Variables
