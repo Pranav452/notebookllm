@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { generateChatResponse, type ChatContext } from "@/lib/gemini"
+import { generateChatResponse, decomposeQuery, type ChatContext } from "@/lib/gemini"
 import { searchSimilarDocuments } from "@/lib/embeddings"
 
 export async function POST(request: NextRequest) {
@@ -40,12 +40,26 @@ export async function POST(request: NextRequest) {
     }
 
     let relevantDocuments = []
-    
+    let decomposedQueries: string[] = []
+
     try {
-      // Search for relevant document chunks
-      console.log(`Searching for documents for user ${user.id} with message: "${message}"`)
-      relevantDocuments = await searchSimilarDocuments(message, user.id, 5)
-      console.log(`Found ${relevantDocuments.length} relevant documents`)
+      // Decompose the user's query
+      decomposedQueries = await decomposeQuery(message)
+      console.log(`Decomposed query into: ${decomposedQueries.join(", ")}`)
+
+      // Search for relevant document chunks for each decomposed query
+      for (const query of decomposedQueries) {
+        console.log(`Searching for documents for user ${user.id} with decomposed query: "${query}"`)
+        const docs = await searchSimilarDocuments(query, user.id, 5)
+        relevantDocuments.push(...docs)
+      }
+      // Remove duplicates based on document_id and content
+      relevantDocuments = relevantDocuments.filter((doc, index, self) =>
+        index === self.findIndex((d) => (
+          d.document_id === doc.document_id && d.content === doc.content
+        ))
+      )
+      console.log(`Found ${relevantDocuments.length} relevant documents after decomposition`)
     } catch (embedError) {
       console.warn("Document search failed, proceeding without context:", embedError)
       // Continue with empty context - the AI can still respond
@@ -92,6 +106,7 @@ export async function POST(request: NextRequest) {
         similarity: doc.similarity,
         metadata: doc.metadata
       })),
+      decomposedQueries: decomposedQueries,
       warning: relevantDocuments.length === 0 ? "No relevant documents found. Response based on general knowledge." : null
     })
 

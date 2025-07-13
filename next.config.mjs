@@ -9,6 +9,16 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'aframe-extras': false,
+        '3d-force-graph-vr': false,
+      };
+    }
+    return config;
+  },
 }
 
 export default nextConfig

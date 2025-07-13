@@ -209,4 +209,61 @@ Tags:
     
     return [...fallbackTags, ...foundTags].slice(0, 5)
   }
+}
+
+export async function decomposeQuery(query: string): Promise<string[]> {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+
+    const prompt = `
+Given the following user query, decompose it into a list of simpler, atomic sub-queries or rephrase it from different relevant perspectives. The goal is to ensure comprehensive retrieval of information.
+
+Return the decomposed queries as a JSON array of strings. Do NOT include any other text or formatting.
+
+Example:
+User Query: "What are the key findings and methodologies of the latest research on climate change?"
+Decomposed Queries: [
+  "key findings of the latest research on climate change",
+  "methodologies used in the latest research on climate change",
+  "recent advancements in climate change research"
+]
+
+User Query: "${query}"
+Decomposed Queries:
+`
+
+    const result = await retryWithBackoff(async () => {
+      return await model.generateContent(prompt)
+    })
+
+    const responseText = result.response.text().trim()
+    
+    // Remove markdown code block if present
+    const cleanedResponseText = responseText.replace(/^```json\n|\n```$/g, '').trim()
+
+    // Attempt to parse the JSON response
+    let decomposedQueries: string[] = []
+    try {
+      decomposedQueries = JSON.parse(cleanedResponseText)
+      if (!Array.isArray(decomposedQueries)) {
+        throw new Error("Response is not a JSON array.")
+      }
+    } catch (parseError) {
+      console.error("Failed to parse decomposed queries JSON:", parseError)
+      // Fallback to original query if parsing fails
+      decomposedQueries = [query]
+    }
+
+    // Ensure at least the original query is present if decomposition fails or returns empty
+    if (decomposedQueries.length === 0) {
+      decomposedQueries.push(query)
+    }
+
+    return decomposedQueries
+
+  } catch (error: any) {
+    console.error('Error decomposing query:', error)
+    // Fallback to original query on any error
+    return [query]
+  }
 } 

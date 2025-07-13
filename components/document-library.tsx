@@ -22,6 +22,10 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { List } from "lucide-react"
+import SummaryDisplayModal from "@/components/summary-display-modal"
+
 interface Document {
   id: string
   name: string
@@ -35,11 +39,26 @@ interface Document {
   image_count?: number
 }
 
+interface SimilarDocument {
+  id: string
+  name: string
+  file_type: string
+  similarity: number
+}
+
 export default function DocumentLibrary() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedFilter, setSelectedFilter] = useState("all")
   const [loading, setLoading] = useState(true)
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [showSimilarDocumentsModal, setShowSimilarDocumentsModal] = useState(false)
+  const [similarDocuments, setSimilarDocuments] = useState<SimilarDocument[]>([])
+  const [isFindingSimilar, setIsFindingSimilar] = useState(false)
+  const [showSummaryModal, setShowSummaryModal] = useState(false)
+  const [generatedSummary, setGeneratedSummary] = useState("")
+  const [summarizedDocumentNames, setSummarizedDocumentNames] = useState<string[]>([])
   const { session } = useAuth()
 
   useEffect(() => {
@@ -147,6 +166,84 @@ export default function DocumentLibrary() {
     }
   }
 
+  const toggleDocumentSelection = (documentId: string) => {
+    setSelectedDocuments(prev =>
+      prev.includes(documentId) ? prev.filter(id => id !== documentId) : [...prev, documentId]
+    )
+  }
+
+  const handleGenerateSummary = async () => {
+    if (selectedDocuments.length === 0 || !session?.access_token) return
+
+    setIsSummarizing(true)
+    try {
+      const response = await fetch("/api/documents/summarize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ documentIds: selectedDocuments }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setGeneratedSummary(data.summary)
+        setSummarizedDocumentNames(selectedDocuments.map(id => documents.find(doc => doc.id === id)?.name || 'Unknown Document'))
+        setShowSummaryModal(true)
+        toast({
+          title: "Multi-Document Summary Generated",
+          description: "Summary is ready and displayed in a modal.",
+        })
+      } else {
+        throw new Error("Failed to generate multi-document summary")
+      }
+    } catch (error) {
+      console.error("Error generating multi-document summary:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate multi-document summary.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSummarizing(false)
+      setSelectedDocuments([]) // Clear selection after summarization
+    }
+  }
+
+  const handleFindSimilarDocuments = async (documentId: string) => {
+    if (!session?.access_token) return
+
+    setIsFindingSimilar(true)
+    try {
+      const response = await fetch("/api/documents/similar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ documentId }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSimilarDocuments(data.similarDocuments)
+        setShowSimilarDocumentsModal(true)
+      } else {
+        throw new Error("Failed to find similar documents")
+      }
+    } catch (error) {
+      console.error("Error finding similar documents:", error)
+      toast({
+        title: "Error",
+        description: "Failed to find similar documents.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFindingSimilar(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -176,6 +273,19 @@ export default function DocumentLibrary() {
             </Tabs>
           </div>
 
+          <div className="mb-4 flex justify-end">
+            <Button
+              onClick={handleGenerateSummary}
+              disabled={selectedDocuments.length === 0 || isSummarizing}
+            >
+              {isSummarizing ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating Summary...</>
+              ) : (
+                "Generate Multi-Document Summary"
+              )}
+            </Button>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -190,6 +300,12 @@ export default function DocumentLibrary() {
                   <Card key={doc.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex items-start space-x-4">
+                        <input
+                          type="checkbox"
+                          className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                          checked={selectedDocuments.includes(doc.id)}
+                          onChange={() => toggleDocumentSelection(doc.id)}
+                        />
                         <div className="p-2 bg-gray-100 rounded-lg">
                           <Icon className="w-6 h-6 text-gray-600" />
                         </div>
@@ -243,6 +359,18 @@ export default function DocumentLibrary() {
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleFindSimilarDocuments(doc.id)}
+                                disabled={isFindingSimilar}
+                              >
+                                {isFindingSimilar ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <><List className="w-4 h-4 mr-1" /> Similar</>
+                                )}
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -265,6 +393,44 @@ export default function DocumentLibrary() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showSimilarDocumentsModal} onOpenChange={setShowSimilarDocumentsModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Similar Documents</DialogTitle>
+            <DialogDescription>
+              Documents similar to the one you selected, based on content.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {similarDocuments.length === 0 ? (
+              <p className="text-center text-gray-500">No similar documents found.</p>
+            ) : (
+              similarDocuments.map((doc) => {
+                const Icon = getFileIcon(doc.file_type)
+                return (
+                  <div key={doc.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <Icon className="w-5 h-5 text-gray-600" />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{doc.name}</p>
+                      <Badge variant="secondary" className="text-xs">
+                        {Math.round(doc.similarity * 100)}% similarity
+                      </Badge>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SummaryDisplayModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        summary={generatedSummary}
+        documentNames={summarizedDocumentNames}
+      />
     </div>
   )
 }

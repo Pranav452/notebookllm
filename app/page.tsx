@@ -7,6 +7,7 @@ import { Upload, FileText, MessageSquare, BarChart3, Settings, LogOut } from "lu
 import dynamic from 'next/dynamic'
 
 const DocumentUpload = dynamic(() => import('@/components/document-upload'), { ssr: false })
+const DocumentGraphVisualization = dynamic(() => import('@/components/document-graph-visualization'), { ssr: false })
 import DocumentLibrary from "@/components/document-library"
 import ChatInterface from "@/components/chat-interface"
 import Analytics from "@/components/analytics"
@@ -77,7 +78,7 @@ export default function HomePage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
             <TabsTrigger value="upload" className="flex items-center space-x-2">
               <Upload className="w-4 h-4" />
               <span>Upload</span>
@@ -93,6 +94,10 @@ export default function HomePage() {
             <TabsTrigger value="analytics" className="flex items-center space-x-2">
               <BarChart3 className="w-4 h-4" />
               <span>Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="visualization" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Visualization</span>
             </TabsTrigger>
           </TabsList>
 
@@ -110,6 +115,10 @@ export default function HomePage() {
 
           <TabsContent value="analytics" className="space-y-6">
             <Analytics />
+          </TabsContent>
+
+          <TabsContent value="visualization" className="space-y-6">
+            <DocumentGraphVisualization />
           </TabsContent>
         </Tabs>
       </main>

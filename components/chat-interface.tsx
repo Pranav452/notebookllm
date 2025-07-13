@@ -25,6 +25,7 @@ interface Message {
       [key: string]: any
     }
   }>
+  decomposedQueries?: string[]
 }
 
 const initialMessage: Message = {
@@ -44,19 +45,61 @@ const suggestedQueries = [
 ]
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([initialMessage])
+  const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { session } = useAuth()
+  const { session, loading: authLoading } = useAuth()
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      if (!session?.access_token || authLoading) return
+
+      try {
+        const response = await fetch("/api/chat/history", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const historyMessages: Message[] = data.messages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.message ? "user" : "assistant", // Assuming 'message' is user, 'response' is assistant
+            content: msg.message || msg.response,
+            timestamp: new Date(msg.created_at),
+            sources: msg.sources || [],
+          }))
+          
+          // Filter out the initial message if it's already in history
+          const filteredHistory = historyMessages.filter(msg => msg.id !== initialMessage.id)
+
+          if (filteredHistory.length === 0) {
+            setMessages([initialMessage])
+          } else {
+            setMessages(filteredHistory)
+          }
+        } else {
+          console.error("Failed to fetch chat history")
+          setMessages([initialMessage]) // Fallback to initial message on error
+        }
+      } catch (error) {
+        console.error("Error fetching chat history:", error)
+        setMessages([initialMessage]) // Fallback to initial message on error
+      }
+    }
+
+    fetchChatHistory()
+  }, [session, authLoading])
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading || !session?.access_token) return
@@ -96,6 +139,7 @@ export default function ChatInterface() {
           content: data.response,
           timestamp: new Date(),
           sources: data.sources || [],
+          decomposedQueries: data.decomposedQueries || [],
         }
 
         setMessages((prev) => [...prev, assistantMessage])
@@ -193,6 +237,17 @@ export default function ChatInterface() {
                               <div className="text-xs text-gray-600 line-clamp-2">{source.content}</div>
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {message.decomposedQueries && message.decomposedQueries.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-gray-300/50 space-y-2">
+                          <div className="text-xs font-semibold text-gray-700 opacity-80">Decomposed Queries:</div>
+                          <ul className="list-disc list-inside text-xs text-gray-600">
+                            {message.decomposedQueries.map((query, index) => (
+                              <li key={index}>{query}</li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                     </div>

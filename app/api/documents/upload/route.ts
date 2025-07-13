@@ -91,6 +91,18 @@ export async function POST(request: NextRequest) {
       // Store embeddings in the database
       const storedEmbeddings = await storeDocumentEmbeddings(documentData.id, chunks)
       console.log(`Stored ${storedEmbeddings?.length || 0} embeddings`)
+
+      // Calculate average embedding for the document
+      let documentEmbedding: number[] | null = null
+      const validEmbeddings = storedEmbeddings?.filter(se => se.embedding && Array.isArray(se.embedding) && se.embedding.length > 0) || []
+
+      if (validEmbeddings.length > 0) {
+        const sumEmbedding = validEmbeddings.reduce((acc, curr) => {
+          return acc.map((val: number, i: number) => val + curr.embedding[i])
+        }, new Array(validEmbeddings[0].embedding.length).fill(0))
+
+        documentEmbedding = sumEmbedding.map((val: number) => val / validEmbeddings.length)
+      }
       
       // Generate tags and summary using Gemini API
       const [tags, summary] = await Promise.all([
@@ -100,12 +112,13 @@ export async function POST(request: NextRequest) {
       
       console.log(`Generated tags: ${tags?.length || 0}, summary length: ${summary?.length || 0}`)
       
-      // Update document with generated metadata
+      // Update document with generated metadata and document embedding
       const { error: updateError } = await supabase.from("documents").update({ 
         status: "completed",
         tags: tags,
         summary: summary,
-        page_count: chunks.length
+        page_count: chunks.length,
+        document_embedding: documentEmbedding
       }).eq("id", documentData.id)
       
       if (updateError) {
@@ -119,7 +132,7 @@ export async function POST(request: NextRequest) {
       // Update document status to error with more details
       await supabase.from("documents").update({ 
         status: "error",
-        summary: `Error processing document: ${error instanceof Error ? error.message : 'Unknown error'}`
+        summary: `Error processing document: ${error instanceof Error ? error.message : JSON.stringify(error)}`
       }).eq("id", documentData.id)
       
       // Don't throw the error, let the upload succeed but mark document as error

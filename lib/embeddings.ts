@@ -83,7 +83,8 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
     }
     
     // Fallback to deterministic embedding based on content
-    console.log("Using deterministic embedding fallback for:", text.substring(0, 50) + "...")
+    const logText = typeof text === 'string' ? text.substring(0, 50) + '...' : `(Invalid text type: ${typeof text}, value: ${text})`
+    console.log("Using deterministic embedding fallback for:", logText)
     return { embedding: generateDeterministicEmbedding(text), model: "fallback" }
   }
 }
@@ -132,7 +133,7 @@ export async function storeDocumentEmbeddings(
   return data
 }
 
-export async function searchSimilarDocuments(query: string, userId: string, limit = 10) {
+export async function searchSimilarDocuments(query: string, userId: string, limit = 10, keyword?: string) {
   console.log(`Searching documents for user ${userId} with query: "${query}"`)
   
   try {
@@ -162,11 +163,12 @@ export async function searchSimilarDocuments(query: string, userId: string, limi
     }
 
     // Use Supabase's pgvector similarity search with very low threshold
-    const { data, error } = await supabase.rpc("search_documents", {
-      query_embedding: queryEmbedding,
+    const { data, error } = await supabase.rpc("search_documents_hybrid", {
+      query_embedding: queryEmbedding.embedding,
       user_id: userId,
       match_threshold: 0.0, // Very low threshold to get any results
       match_count: limit,
+      keyword_query: keyword // Pass the keyword query
     })
 
     if (error) {
